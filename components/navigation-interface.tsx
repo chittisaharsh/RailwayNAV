@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import jsQR from "jsqr";
 
 /**
  * ===============================================
@@ -17,20 +18,38 @@ import { Button } from "@/components/ui/button";
  * ===============================================
  */
 
+/* ---------------- Types & helpers ---------------- */
 
-// ---- SpeechRecognition typings for TS ----
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
+type Language = "english" | "hindi" | "marathi" | "gujarati";
+
+// minimal translations used by this component
+const translations: Record<Language, { selectedDestination: string }> = {
+  english: { selectedDestination: "You have selected" },
+  hindi: { selectedDestination: "आपने चुना है" },
+  marathi: { selectedDestination: "आपण निवडले आहे" },
+  gujarati: { selectedDestination: "તમે પસંદ કર્યું છે" },
+};
+
+interface StationNavigationProps {
+  initialData?: {
+    nodes?: Record<string, string>;
+    graph?: Record<string, Record<string, number>>;
+    coordinates?: Record<string, [number, number]>;
+    language?: Language;
+  };
 }
 
-const SpeechRecognition =
-  typeof window !== "undefined"
-    ? window.SpeechRecognition || window.webkitSpeechRecognition
-    : null;
+const IconWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="rounded-xl p-2 h-10 w-10 flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 ring-1 ring-pink-100/60">
+    {children}
+  </div>
+);
 
+const SvgIcon = ({ name, className = "h-6 w-6" }: { name: string; className?: string }) => (
+  <img src={`/${name}.svg`} alt={name} className={className} />
+);
+
+/* ---------------- Data: nodes/graph/coords/menu ---------------- */
 
 export const nodeFriendlyNames: Record<string, string> = {
   kiosk: "Kiosk",
@@ -82,16 +101,6 @@ export const nodeFriendlyNames: Record<string, string> = {
   mdrm: "Medical Room",
   autost: "Auto Stand",
 };
-
-const IconWrapper = ({ children }: { children: React.ReactNode }) => (
-  <div className="rounded-xl p-2 h-10 w-10 flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 ring-1 ring-pink-100/60">
-    {children}
-  </div>
-);
-
-const SvgIcon = ({ name, className = "h-6 w-6" }: { name: string; className?: string }) => (
-  <img src={`/${name}.svg`} alt={name} className={className} />
-);
 
 const stationGraph: Record<string, Record<string, number>> = {
   kiosk: { tc1: 1, esc3: 1 },
@@ -198,10 +207,10 @@ export const coordinates: Record<string, [number, number]> = {
 const menuItems = [
   { icon: "platform1", label: { english: "Platform 1", hindi: "प्लेटफ़ॉर्म 1", marathi: "प्लॅटफॉर्म 1", gujarati: "પ્લેટફોર્મ 1" }, value: "lp1" },
   { icon: "platform2", label: { english: "Platform 2", hindi: "प्लेटफ़ॉर्म 2", marathi: "प्लॅटफॉर्म 2", gujarati: "પ્લેટફોર્મ 2" }, value: "lp2" },
-  { icon: "platform3", label: { english: "Platform 3", hindi: "प्लेटफ़ॉर्म 3", marathi: "प्लॅटफॉर्म 3", gujarati: "પ્લેટફોર્મ 3" }, value: "lp3" },
-  { icon: "platform4", label: { english: "Platform 4", hindi: "प्लेटफ़ॉर्म 4", marathi: "प्लॅटफॉर्म 4", gujarati: "પ્લેટફોર્મ 4" }, value: "lp4" },
+  { icon: "platform3", label: { english: "Platform 3", hindi: "प्लेटफ़ॉर्म 3", marathi: "प्लॅटफોર્મ 3", gujarati: "પ્લેટફોર્મ 3" }, value: "lp3" },
+  { icon: "platform4", label: { english: "Platform 4", hindi: "प्लेटफ़ॉर्म 4", marathi: "प्लॅटफોર્મ 4", gujarati: "પ્લેટફોર્મ 4" }, value: "lp4" },
   { icon: "ticket_counter", label: { english: "Ticket Counter 1", hindi: "टिकट काउंटर 1", marathi: "तिकीट काउंटर 1", gujarati: "ટિકિટ કાઉન્ટર 1" }, value: "tc1" },
-  { icon: "ticket_counter", label: { english: "Ticket Counter 2", hindi: "टिकट काउंटर 2", marathi: "तिकीट काउंटर 2", gujarati: "ટિકિટ કાઉન્ટર 2" }, value: "tc2" },
+  { icon: "ticket_counter", label: { english: "Ticket Counter 2", hindi: "टिकट काउंटर 2", marathi: "तिकीट કાઉન્ટર 2", gujarati: "ટિકિટ કાઉન્ટર 2" }, value: "tc2" },
   { icon: "waiting_room", label: { english: "Waiting Room", hindi: "प्रतीक्षालय", marathi: "प्रतीक्षा कक्ष", gujarati: "પ્રતીક્ષા ખંડ" }, value: "wtrm" },
   { icon: "medical_room", label: { english: "Medical Room", hindi: "चिकित्सा कक्ष", marathi: "वैद्यकीय कक्ष", gujarati: "મેડિકલ રૂમ" }, value: "mdrm" },
   { icon: "washroom", label: { english: "Washroom", hindi: "शौचाय", marathi: "स्वच्छतागृह", gujarati: "શૌચાલય" }, value: "wsrm" },
@@ -212,101 +221,29 @@ const menuItems = [
   { icon: "station_master", label: { english: "Station Master", hindi: "स्टेशन मास्टर", marathi: "स्टेशन मास्टर", gujarati: "સ્ટેશન માસ્ટર" }, value: "stm" },
   { icon: "bus", label: { english: "Bus Station", hindi: "बस स्टेशन", marathi: "बस स्थानक", gujarati: "બસ સ્ટેશન" }, value: "bus_st" },
   { icon: "parking", label: { english: "Parking", hindi: "पार्किंग", marathi: "पार्किंग", gujarati: "પાર્કિંગ" }, value: "pkng" },
-  { icon: "entex", label: { english: "East Exit 1", hindi: "पूर्वी निकास 1", marathi: "पूर्व निर्गम 1", gujarati: "પૂર્વ નિકास 1" }, value: "enex_e1" },
+  { icon: "entex", label: { english: "East Exit 1", hindi: "पूर्वी निकास 1", marathi: "पूर्व निर्गम 1", gujarati: "પૂર્વ નિકાસ 1" }, value: "enex_e1" },
   { icon: "entex", label: { english: "East Exit 2", hindi: "पूर्वी निकास 2", marathi: "पूर्व निर्गम 2", gujarati: "પૂર્વ નિકાસ 2" }, value: "enex_e2" },
   { icon: "entex", label: { english: "West Exit", hindi: "पश्चिमी निकास", marathi: "पश्चिम निर्गम", gujarati: "પશ્ચિમ નિકાસ" }, value: "enex_w" },
 ];
 
-// const translations = {
-//   english: {
-//     platform: "Platform",
-//     ticketCounter: "Ticket Counter",
-//     stationMaster: "Station Master",
-//     waitingRoom: "Waiting Room",
-//     washroom: "Washroom",
-//     staircase: "Staircase",
-//     elevator: "Elevator",
-//     escalator: "Escalator",
-//     busStand: "Bus Stand",
-//     otherTransport: "Other Transport",
-//     entranceExit: "Entrance/Exit",
-//     parking: "Parking",
-//     medicalRoom: "Medical Room",
-//     atm: "ATM",
-//     quickSearch: "Quick Search",
-//     announcement: "Announcement",
-//     selectedDestination: "You have selected",
-//     qrCodeInfo: "QR Code Information",
-//     selectedRoute: "You have selected the route: ",
-//     selectRouteFirst: "Please select a route first.",
-//   },
-// };
-
-const translations: Record<string, any> = {
-  english: {
-    platform: "Platform",
-    ticketCounter: "Ticket Counter",
-    stationMaster: "Station Master",
-    waitingRoom: "Waiting Room",
-    washroom: "Washroom",
-    staircase: "Staircase",
-    elevator: "Elevator",
-    escalator: "Escalator",
-    busStand: "Bus Stand",
-    otherTransport: "Other Transport",
-    entranceExit: "Entrance/Exit",
-    parking: "Parking",
-    medicalRoom: "Medical Room",
-    atm: "ATM",
-    quickSearch: "Quick Search",
-    announcement: "Announcement",
-    selectedDestination: "You have selected",
-    qrCodeInfo: "QR Code Information",
-    selectedRoute: "You have selected the route: ",
-    selectRouteFirst: "Please select a route first.",
-  },
-};
-
-
-interface StationNavigationProps {
-  initialData?: {
-    nodes?: Record<string, string>;
-    graph?: Record<string, Record<string, number>>;
-    coordinates?: Record<string, [number, number]>;
-    language?: string;
-  };
-}
-
-// Minimal typings so TS accepts native BarcodeDetector usage (Option 2)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare class BarcodeDetector {
-  constructor(options?: { formats?: string[] });
-  static getSupportedFormats(): Promise<string[]>;
-  detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>>;
-}
+/* ---------------- Pathfinding (Dijkstra-lite) ---------------- */
 
 function findShortestPath(start: string, end: string): string[] {
   if (!stationGraph[start] || !stationGraph[end]) return [];
 
   const distances: Record<string, number> = {};
   const previous: Record<string, string | null> = {};
-  const unvisited = new Set<string>();
+  const unvisited = new Set<string>(Object.keys(stationGraph));
 
   Object.keys(stationGraph).forEach((node) => {
     distances[node] = Infinity;
     previous[node] = null;
-    unvisited.add(node);
   });
-
   distances[start] = 0;
 
   while (unvisited.size > 0) {
-    let current = Array.from(unvisited).reduce((a, b) =>
-      distances[a] < distances[b] ? a : b
-    );
-
+    let current = Array.from(unvisited).reduce((a, b) => (distances[a] < distances[b] ? a : b));
     if (current === end) break;
-
     unvisited.delete(current);
 
     Object.entries(stationGraph[current] || {}).forEach(([neighbor, distance]) => {
@@ -328,21 +265,24 @@ function findShortestPath(start: string, end: string): string[] {
     path.unshift(current);
     current = previous[current];
   }
-
   return path;
 }
+
+/* ---------------- Component ---------------- */
 
 const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) => {
   const activeNodes = initialData?.nodes || nodeFriendlyNames;
   const activeCoordinates = initialData?.coordinates || coordinates;
 
-  // Camera (Option 2: native BarcodeDetector)
+  // Camera + QR (jsQR only)
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // UI state
   const [, setAnnouncement] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [language, setLanguage] = useState("english");
+  const [language, setLanguage] = useState<Language>(initialData?.language || "english");
   const [zoom, setZoom] = useState(1);
   const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -356,18 +296,18 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [showQuickSearch, setShowQuickSearch] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  //const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const recognitionRef = useRef<any>(null);
 
+  // If you need voice later, keep 'any' to avoid TS DOM typings error
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   // Voice setup (kept minimal)
   useEffect(() => {
     const setVoices = () => {
-      window.speechSynthesis.getVoices();
+      if (typeof window !== "undefined") window.speechSynthesis.getVoices();
     };
     setVoices();
-    window.speechSynthesis.onvoiceschanged = setVoices;
+    if (typeof window !== "undefined") window.speechSynthesis.onvoiceschanged = setVoices;
   }, []);
 
   // Resize observer
@@ -408,8 +348,8 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
         const audio = new Audio(audioUrl);
         audio.play();
       }
-    } catch (err) {
-      console.error("TTS error", err);
+    } catch {
+      // ignore TTS errors for now
     }
 
     const selectedItem = menuItems.find((item) => item.label.english === option.english);
@@ -426,9 +366,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     }
   }, [isDialogOpen]);
 
-  const handleLanguageChange = (newLang: string) => {
-    setLanguage(newLang);
-  };
+  const handleLanguageChange = (newLang: Language) => setLanguage(newLang);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z * 1.15, 3));
   const handleZoomOut = () => setZoom((z) => Math.max(z / 1.15, 1));
@@ -454,78 +392,13 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     return [x * scaleX, y * scaleY] as const;
   };
 
-  // ---------- Option 2: Native BarcodeDetector scanner ----------
-  // const startQRScan = async () => {
-  //   try {
-  //     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-  //     if (videoRef.current) {
-  //       videoRef.current.srcObject = stream;
-  //       await videoRef.current.play();
-  //     }
-  //     setIsCameraOpen(true);
-
-  //     const canvas = document.createElement("canvas");
-  //     const ctx = canvas.getContext("2d");
-
-  //     const scan = () => {
-  //       if (!videoRef.current || !ctx) return;
-
-  //       canvas.width = videoRef.current.videoWidth;
-  //       canvas.height = videoRef.current.videoHeight;
-  //       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-
-  //       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  //       const code = jsQR(imageData.data, canvas.width, canvas.height);
-
-  //       if (code) {
-  //         const value = code.data.trim();
-  //         stream.getTracks().forEach(t => t.stop());
-  //         setIsCameraOpen(false);
-
-  //         try {
-  //           const url = new URL(value);
-  //           const id = url.searchParams.get("id");
-  //           if (id && coordinates[id]) {
-  //             setSelectedSource(id);
-  //             if (selectedDestination) handleDestinationClick(selectedDestination);
-  //           } else alert("Invalid QR");
-  //         } catch {
-  //           if (coordinates[value]) {
-  //             setSelectedSource(value);
-  //             if (selectedDestination) handleDestinationClick(selectedDestination);
-  //           } else alert("Invalid QR");
-  //         }
-  //         return;
-  //       }
-
-  //       requestAnimationFrame(scan);
-  //     };
-
-  //     requestAnimationFrame(scan);
-  //   } catch (err) {
-  //     alert("Camera error");
-  //     console.error(err);
-  //   }
-  // };(scan);
-  //     };
-
-  //     requestAnimationFrame(scan);
-  //   } catch (err) {
-  //     alert("Unable to open camera");
-  //     console.error(err);
-  //   }
-  // };
+  /* ---------- jsQR scanner (no BarcodeDetector) ---------- */
   const startQRScan = async () => {
     try {
-      let stream;
-
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } }
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -534,17 +407,76 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
 
       setIsCameraOpen(true);
 
-      // ✅ Give camera time to boot
+      // give the camera a moment to warm up then start scanning frames
       setTimeout(() => {
-        scanQRCode();
-      }, 400);
+        const scan = () => {
+          if (!isCameraOpen) return; // overlay closed → stop loop
 
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          if (!video || !canvas) {
+            requestAnimationFrame(scan);
+            return;
+          }
+
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            requestAnimationFrame(scan);
+            return;
+          }
+
+          // ensure canvas matches the video frame size
+          canvas.width = video.videoWidth || 320;
+          canvas.height = video.videoHeight || 240;
+
+          // draw current video frame
+          try {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            const result = jsQR(imageData.data, canvas.width, canvas.height);
+            if (result && result.data) {
+              const qrValue = result.data;
+
+              // stop camera
+              if (video.srcObject) {
+                (video.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
+              }
+              setIsCameraOpen(false);
+
+              // accept either raw node id (e.g., "lp1") or url like railnav://facility?id=lp1
+              let nodeId = qrValue.trim();
+              try {
+                const url = new URL(qrValue);
+                nodeId = url.searchParams.get("id") || nodeId;
+              } catch {
+                // not a URL -> keep raw value
+              }
+
+              if (coordinates[nodeId]) {
+                setSelectedSource(nodeId);
+                if (selectedDestination) handleDestinationClick(selectedDestination);
+              } else {
+                alert("Invalid QR code");
+              }
+              return; // stop loop after success
+            }
+          } catch {
+            // ignore draw/processing errors; keep scanning
+          }
+
+          requestAnimationFrame(scan);
+        };
+
+        requestAnimationFrame(scan);
+      }, 400);
     } catch (err) {
       alert("Unable to access camera. Please allow permission.");
       console.error(err);
     }
-  };   // ✅ THIS is required!
+  };
 
+  /* ---------------- SVG drawing ---------------- */
 
   const updateSvg = () => {
     const svg = svgRef.current;
@@ -577,7 +509,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
       });
     });
 
-    // nodes (hidden except highlighted path)
+    // nodes (hidden unless on path)
     Object.entries(activeCoordinates).forEach(([node, [x, y]]) => {
       const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       const [sx, sy] = scaleCoordinates(x, y, svgSize);
@@ -633,6 +565,8 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, svgSize, zoom, panPosition]);
 
+  /* ---------------- Events ---------------- */
+
   const handleDestinationClick = (value: string) => {
     setSelectedDestination(value);
     const calculatedPath = findShortestPath(selectedSource, value);
@@ -674,16 +608,18 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     setPanPosition({ x: 0, y: 0 });
     setSelectedDestination("");
     setPath([]);
-    window.speechSynthesis.cancel();
+    if (typeof window !== "undefined") window.speechSynthesis.cancel();
 
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      recognitionRef.current.stop?.();
       setIsListening(false);
       recognitionRef.current = null;
     }
 
     setAnnouncement("");
   };
+
+  /* ---------------- Render ---------------- */
 
   return (
     <div className="min-h-screen w-full bg-white text-slate-700">
@@ -751,7 +687,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
               <label className="block text-xs font-medium text-slate-500 mb-1">Language</label>
               <select
                 value={language}
-                onChange={(e) => handleLanguageChange(e.target.value)}
+                onChange={(e) => handleLanguageChange(e.target.value as Language)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-pink-300"
               >
                 <option value="english">English</option>
@@ -889,6 +825,8 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999]">
             <div className="bg-white p-4 rounded-2xl shadow-xl">
               <video ref={videoRef} autoPlay className="w-[320px] h-[320px] rounded-xl bg-black object-cover" />
+              {/* hidden canvas for jsQR frame processing */}
+              <canvas ref={canvasRef} className="hidden" />
               <button
                 onClick={() => {
                   if (videoRef.current?.srcObject) {
