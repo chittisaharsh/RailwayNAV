@@ -739,7 +739,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
       recognitionRef.current = null;
     }
     setAnnouncement("");
-  };
+  //};
 
   return (
     <div className="min-h-screen w-full bg-white text-slate-700">
