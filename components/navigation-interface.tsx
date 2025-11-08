@@ -396,7 +396,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   const startQRScan = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: { facingMode: "environment" },
         audio: false,
       });
 
@@ -407,50 +407,48 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
 
       setIsCameraOpen(true);
 
-      // give the camera a moment to warm up then start scanning frames
+      // Wait for camera to boot
       setTimeout(() => {
         const scan = () => {
-          if (!isCameraOpen) return; // overlay closed → stop loop
+          // prevent scanning after closing overlay
+          if (!videoRef.current || !canvasRef.current || !isCameraOpen) return;
 
           const video = videoRef.current;
           const canvas = canvasRef.current;
-          if (!video || !canvas) {
-            requestAnimationFrame(scan);
-            return;
-          }
-
           const ctx = canvas.getContext("2d");
+
           if (!ctx) {
             requestAnimationFrame(scan);
             return;
           }
 
-          // ensure canvas matches the video frame size
-          canvas.width = video.videoWidth || 320;
-          canvas.height = video.videoHeight || 240;
+          // Sync canvas size with video
+          const w = video.videoWidth || 320;
+          const h = video.videoHeight || 240;
+          canvas.width = w;
+          canvas.height = h;
 
-          // draw current video frame
           try {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, w, h);
+            const img = ctx.getImageData(0, 0, w, h);
 
-            const result = jsQR(imageData.data, canvas.width, canvas.height);
-            if (result && result.data) {
-              const qrValue = result.data;
+            const qr = jsQR(img.data, w, h);
+
+            if (qr && qr.data) {
+              const value = qr.data.trim();
 
               // stop camera
-              if (video.srcObject) {
-                (video.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
-              }
+              const media = video.srcObject as MediaStream;
+              if (media) media.getTracks().forEach((t) => t.stop());
               setIsCameraOpen(false);
 
-              // accept either raw node id (e.g., "lp1") or url like railnav://facility?id=lp1
-              let nodeId = qrValue.trim();
+              // Try extract id from URL format
+              let nodeId = value;
               try {
-                const url = new URL(qrValue);
+                const url = new URL(value);
                 nodeId = url.searchParams.get("id") || nodeId;
               } catch {
-                // not a URL -> keep raw value
+                /* not URL */
               }
 
               if (coordinates[nodeId]) {
@@ -459,22 +457,47 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
               } else {
                 alert("Invalid QR code");
               }
-              return; // stop loop after success
+              return; // stop scanning
             }
           } catch {
-            // ignore draw/processing errors; keep scanning
+            // continue scanning even if one frame errors
           }
 
           requestAnimationFrame(scan);
         };
 
         requestAnimationFrame(scan);
-      }, 400);
+      }, 350);
     } catch (err) {
       alert("Unable to access camera. Please allow permission.");
-      console.error(err);
+      console.error("Camera error:", err);
     }
   };
+
+
+  const handleDetectedQR = (raw: string) => {
+    try {
+      const url = new URL(raw);
+      const id = url.searchParams.get("id");
+      if (id) {
+        setSelectedSource(id);
+        if (selectedDestination) handleDestinationClick(selectedDestination);
+        return;
+      }
+    } catch (e) {
+      // Not a URL
+    }
+
+    // Direct node ID?
+    if (coordinates[raw]) {
+      setSelectedSource(raw);
+      if (selectedDestination) handleDestinationClick(selectedDestination);
+      return;
+    }
+
+    alert("Invalid QR code");
+  };
+
 
   /* ---------------- SVG drawing ---------------- */
 
@@ -824,7 +847,15 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
         {isCameraOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999]">
             <div className="bg-white p-4 rounded-2xl shadow-xl">
-              <video ref={videoRef} autoPlay className="w-[320px] h-[320px] rounded-xl bg-black object-cover" />
+              {/* <video ref={videoRef} autoPlay className="w-[320px] h-[320px] rounded-xl bg-black object-cover" /> */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-[320px] h-[320px] rounded-xl bg-black object-cover"
+              />
+
               {/* hidden canvas for jsQR frame processing */}
               <canvas ref={canvasRef} className="hidden" />
               <button
