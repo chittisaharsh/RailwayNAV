@@ -402,6 +402,12 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+
+        // ✅ FIX: wait for metadata before playing (prevents black screen)
+        await new Promise((resolve) => {
+          videoRef.current!.addEventListener("loadedmetadata", resolve, { once: true });
+        });
+
         await videoRef.current.play();
       }
 
@@ -448,7 +454,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                 const url = new URL(value);
                 nodeId = url.searchParams.get("id") || nodeId;
               } catch {
-                /* not URL */
+                // not a URL
               }
 
               if (coordinates[nodeId]) {
@@ -457,6 +463,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
               } else {
                 alert("Invalid QR code");
               }
+
               return; // stop scanning
             }
           } catch {
@@ -473,6 +480,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
       console.error("Camera error:", err);
     }
   };
+
 
 
   const handleDetectedQR = (raw: string) => {
@@ -847,22 +855,25 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
         {isCameraOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999]">
             <div className="bg-white p-4 rounded-2xl shadow-xl">
-              {/* <video ref={videoRef} autoPlay className="w-[320px] h-[320px] rounded-xl bg-black object-cover" /> */}
+
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-[320px] h-[320px] rounded-xl bg-black object-cover"
+                className="w-[320px] h-[320px] rounded-xl object-cover bg-gray-900"
+                style={{ zIndex: 2, position: "relative" }}
               />
 
-              {/* hidden canvas for jsQR frame processing */}
-              <canvas ref={canvasRef} className="hidden" />
+              <canvas
+                ref={canvasRef}
+                className="hidden"
+              />
+
               <button
                 onClick={() => {
                   if (videoRef.current?.srcObject) {
-                    const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-                    tracks.forEach((t) => t.stop());
+                    (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
                   }
                   setIsCameraOpen(false);
                 }}
@@ -871,6 +882,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                 Close
               </button>
             </div>
+
           </div>
         )}
       </main>
