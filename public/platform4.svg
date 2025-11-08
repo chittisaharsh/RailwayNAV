@@ -1,23 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15">
+<svg id="Layer_2" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 15 15">
+  <!-- Generator: Adobe Illustrator 29.4.0, SVG Export Plug-In . SVG Version: 2.1.0 Build 152)  -->
   <defs>
     <style>
-      .cls-1 {
-        fill: #6a0872;
+      .st0 {
+        fill: #fff;
       }
 
-      .cls-2 {
-        fill: #fff;
+      .st1 {
+        fill: #999;
       }
     </style>
   </defs>
-  <g id="Layer_1-2" data-name="Layer 1">
+  <g id="Layer_1-2">
     <g>
       <g>
-        <circle class="cls-1" cx="7.5" cy="7.5" r="7.22"/>
-        <path class="cls-2" d="M7.5,15C3.36,15,0,11.64,0,7.5S3.36,0,7.5,0s7.5,3.36,7.5,7.5-3.36,7.5-7.5,7.5ZM7.5.55C3.67.55.55,3.67.55,7.5s3.12,6.95,6.95,6.95,6.95-3.12,6.95-6.95S11.33.55,7.5.55Z"/>
+        <circle class="st1" cx="7.5" cy="7.5" r="7.2"/>
+        <path class="st0" d="M7.5,15C3.4,15,0,11.6,0,7.5S3.4,0,7.5,0s7.5,3.4,7.5,7.5-3.4,7.5-7.5,7.5ZM7.5.6C3.7.6.6,3.7.6,7.5s3.1,6.9,6.9,6.9,6.9-3.1,6.9-6.9S11.3.6,7.5.6Z"/>
       </g>
-      <path class="cls-2" d="M8.46,9.14c0,.5,0,.84,0,1.03s.01.33.02.41l.77.18-.04.47h-2.75l-.04-.47,1.02-.18c0-.08.01-.22.01-.41v-5.24l.25.05-2.75,3.62v-.26h4.62v.81h-5.4l-.09-.43,3.91-4.94h.48c0,.3-.02.61-.03.92s-.01.63-.01.95v3.51Z"/>
+      <path class="st0" d="M8.5,9.1v1c0,.2,0,.3,0,.4l.8.2v.5h-2.8v-.5s1-.2,1-.2c0,0,0-.2,0-.4v-5.2h.2c0,0-2.8,3.7-2.8,3.7v-.3h4.6v.8h-5.4v-.4c0,0,3.8-4.9,3.8-4.9h.5c0,.3,0,.6,0,.9s0,.6,0,.9v3.5h0Z"/>
     </g>
   </g>
 </svg>

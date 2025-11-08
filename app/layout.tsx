@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Pravasi Path",
-  description: "The Smart Station Navigator",
+  title: "Internal Railway Navigation",
+  description: "",
 };
 
 export default function RootLayout({
