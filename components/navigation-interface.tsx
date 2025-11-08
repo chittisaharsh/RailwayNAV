@@ -244,7 +244,7 @@ declare class BarcodeDetector {
   detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>>;
 }
 
-action function findShortestPath(start: string, end: string): string[] {
+function findShortestPath(start: string, end: string): string[] {
   if (!stationGraph[start] || !stationGraph[end]) return [];
 
   const distances: Record<string, number> = {};
