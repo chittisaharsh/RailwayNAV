@@ -217,7 +217,32 @@ const menuItems = [
   { icon: "entex", label: { english: "West Exit", hindi: "पश्चिमी निकास", marathi: "पश्चिम निर्गम", gujarati: "પશ્ચિમ નિકાસ" }, value: "enex_w" },
 ];
 
-const translations = {
+// const translations = {
+//   english: {
+//     platform: "Platform",
+//     ticketCounter: "Ticket Counter",
+//     stationMaster: "Station Master",
+//     waitingRoom: "Waiting Room",
+//     washroom: "Washroom",
+//     staircase: "Staircase",
+//     elevator: "Elevator",
+//     escalator: "Escalator",
+//     busStand: "Bus Stand",
+//     otherTransport: "Other Transport",
+//     entranceExit: "Entrance/Exit",
+//     parking: "Parking",
+//     medicalRoom: "Medical Room",
+//     atm: "ATM",
+//     quickSearch: "Quick Search",
+//     announcement: "Announcement",
+//     selectedDestination: "You have selected",
+//     qrCodeInfo: "QR Code Information",
+//     selectedRoute: "You have selected the route: ",
+//     selectRouteFirst: "Please select a route first.",
+//   },
+// };
+
+const translations: Record<string, any> = {
   english: {
     platform: "Platform",
     ticketCounter: "Ticket Counter",
@@ -241,6 +266,7 @@ const translations = {
     selectRouteFirst: "Please select a route first.",
   },
 };
+
 
 interface StationNavigationProps {
   initialData?: {
