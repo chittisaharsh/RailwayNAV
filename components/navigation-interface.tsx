@@ -710,9 +710,15 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                 {/* QR Scan Button */}
                 <button
                   onClick={() => {
-                    startQRScan();
+                    // startQRScan();
+                    // setShowQuickSearch(false);
+                    // setTimeout(() => startQRScan(), 50);
+                    setIsCameraOpen(true);
+
+                    // 2. Wait a moment so <video> actually mounts
+                    setTimeout(() => startQRScan(), 80);
+
                     setShowQuickSearch(false);
-                    setTimeout(() => startQRScan(), 50);
                   }}
                   className="flex items-center w-full mb-3 text-left bg-blue-50 hover:bg-blue-100 transition rounded-xl px-3 py-2 shadow-sm border border-blue-200"
                 >
@@ -834,7 +840,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                 autoPlay
                 playsInline
                 muted
-                className="w-80 h-80 rounded-xl bg-red-500"
+                className="w-[320px] h-[320px] rounded-xl object-cover bg-gray-900"
               />
 
               <canvas ref={canvasRef} className="hidden" />
