@@ -336,8 +336,11 @@ interface StationNavigationProps {
 const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) => {
   const activeNodes = initialData?.nodes || nodeFriendlyNames;
   const activeCoordinates = initialData?.coordinates || coordinates;
+
+  // ✅ Camera states (ONLY ONCE)
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
 
   const [, setAnnouncement] = useState("");
@@ -355,10 +358,14 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   const svgRef = useRef<SVGSVGElement>(null);
   const [svgSize, setSvgSize] = useState({ width: 1800, height: 800 });
   const containerRef = useRef<HTMLDivElement>(null);
+
   const [isQRDialogOpen] = useState(false);
   const [isInfoDialogOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [showQuickSearch, setShowQuickSearch] = useState(false); (false);
+
+  // ✅ FIXED — removed stray (false)
+  const [showQuickSearch, setShowQuickSearch] = useState(false);
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // ————— Voice setup (kept) —————
@@ -456,6 +463,117 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     return [x * scaleX, y * scaleY] as const;
   };
 
+
+  // const startQRScan = async () => {
+  //   try {
+  //     let stream;
+
+  //     // Try to open the BACK CAMERA first
+  //     try {
+  //       stream = await navigator.mediaDevices.getUserMedia({
+  //         video: { facingMode: { ideal: "environment" } }
+  //       });
+  //     } catch {
+  //       // If it fails (PC or unsupported), fallback to any camera
+  //       stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  //     }
+
+  //     // Attach stream to video element
+  //     if (videoRef.current) {
+  //       videoRef.current.srcObject = stream;
+  //       await videoRef.current.play();
+  //     }
+
+  //     setIsCameraOpen(true);
+  //   } catch (err) {
+  //     console.error("Camera error:", err);
+  //     alert("Unable to access camera. Please allow permission in your browser.");
+  //   }
+  // };
+
+  const startQRScan = async () => {
+    try {
+      let stream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } }
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setIsCameraOpen(true);
+
+      // ✅ Give the camera 400ms to start then scan
+      setTimeout(() => {
+        scanQRCode();
+      }, 400);
+
+    } catch (err) {
+      console.error("Camera error:", err);
+      alert("Unable to access camera. Please allow permission.");
+    }
+  };
+
+
+  const scanQRCode = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const scan = () => {
+      if (!isCameraOpen) return;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+      if (code) {
+        console.log("QR detected: ", code.data);
+
+        // ✅ Stop camera
+        if (video.srcObject) {
+          const tracks = (video.srcObject as MediaStream).getTracks();
+          tracks.forEach((t) => t.stop());
+        }
+
+        setIsCameraOpen(false);
+
+        // ✅ Auto-navigate (example: railnav://facility?id=lp1)
+        const url = new URL(code.data);
+        const facilityID = url.searchParams.get("id");
+
+        if (facilityID) {
+          handleDestinationClick(facilityID);
+        } else {
+          alert("Invalid QR code");
+        }
+
+        return;
+      }
+
+      requestAnimationFrame(scan);
+    };
+
+    requestAnimationFrame(scan);
+  };
+
+
+
   const updateSvg = () => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -502,7 +620,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     //   rect.setAttribute("filter", node === "kiosk" ? "url(#glow)" : "");
     //   nodesGroup.appendChild(rect);
     // });
-        Object.entries(activeCoordinates).forEach(([node, [x, y]]) => {
+    Object.entries(activeCoordinates).forEach(([node, [x, y]]) => {
       const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       const [sx, sy] = scaleCoordinates(x, y, svgSize);
 
@@ -809,6 +927,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                     </feMerge>
                   </filter>
                 </defs>
+
                 <image href="/map.svg" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" />
                 <g id="edges"></g>
                 <g id="nodes"></g>
@@ -826,6 +945,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                     <SvgIcon name="reset" />
                   </IconWrapper>
                 </Button>
+
                 <Button
                   variant="secondary"
                   className="h-10 w-10 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-purple-50"
@@ -835,6 +955,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                     <SvgIcon name="zoomin" />
                   </IconWrapper>
                 </Button>
+
                 <Button
                   variant="secondary"
                   className="h-10 w-10 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-blue-50"
@@ -848,10 +969,20 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
             </div>
           </div>
         </section>
+
+        {/* ✅ Camera Overlay */}
         {isCameraOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999]">
             <div className="bg-white p-4 rounded-2xl shadow-xl">
-              <video ref={videoRef} className="w-[320px] h-[320px] rounded-xl bg-black" />
+              <video
+                ref={videoRef}
+                autoPlay
+                className="w-[320px] h-[320px] rounded-xl bg-black object-cover"
+              />
+
+              <canvas ref={canvasRef} className="hidden" />
+
+
               <button
                 onClick={() => {
                   if (videoRef.current?.srcObject) {
@@ -860,7 +991,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                   }
                   setIsCameraOpen(false);
                 }}
-                className="mt-3 w-full py-2 rounded-xl bg-red-500 text-white"
+                className="mt-3 w-full py-2 rounded-xl bg-red-500 text-white font-semibold"
               >
                 Close
               </button>
@@ -868,18 +999,12 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
           </div>
         )}
 
-      </main>
+        <style jsx global>{`
+  /* minimal scrollbar */
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgb(203 213 225); border-radius: 2px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background-color: transparent; }
+`}</style>
 
-      <style jsx global>{`
-        /* minimal scrollbar */
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgb(203 213 225); border-radius: 2px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background-color: transparent; }
-      `}</style>
-    </div>
-  );
-};
-
-export default StationNavigation;
 
 
