@@ -17,6 +17,21 @@ import { Button } from "@/components/ui/button";
  * ===============================================
  */
 
+
+// ---- SpeechRecognition typings for TS ----
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
+const SpeechRecognition =
+  typeof window !== "undefined"
+    ? window.SpeechRecognition || window.webkitSpeechRecognition
+    : null;
+
+
 export const nodeFriendlyNames: Record<string, string> = {
   kiosk: "Kiosk",
   up1: " Upper Platform 1",
@@ -316,7 +331,9 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
 
   const [showQuickSearch, setShowQuickSearch] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  //const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any>(null);
+
 
   // Voice setup (kept minimal)
   useEffect(() => {
