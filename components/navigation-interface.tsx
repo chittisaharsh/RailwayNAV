@@ -727,6 +727,20 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     if (closestNode) handleDestinationClick(closestNode);
   };
 
+  // const handleReset = () => {
+  //   setZoom(1);
+  //   setPanPosition({ x: 0, y: 0 });
+  //   setSelectedDestination("");
+  //   setPath([]);
+  //   window.speechSynthesis.cancel();
+  //   if (recognitionRef.current) {
+  //     recognitionRef.current.stop();
+  //     setIsListening(false);
+  //     recognitionRef.current = null;
+  //   }
+  //   setAnnouncement("");
+  // //};
+
   const handleReset = () => {
     setZoom(1);
     setPanPosition({ x: 0, y: 0 });
@@ -739,7 +753,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
       recognitionRef.current = null;
     }
     setAnnouncement("");
-  //};
+  };   // ✅ correct closing brace here
 
   return (
     <div className="min-h-screen w-full bg-white text-slate-700">
