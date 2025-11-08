@@ -283,6 +283,13 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  if (typeof window !== "undefined") {
+    // @ts-ignore
+    window.__video = videoRef;
+    // @ts-ignore
+    window.__canvas = canvasRef;
+  }
+
   // always latest state inside animation loop
   const isCameraOpenRef = useRef(false);
   useEffect(() => { isCameraOpenRef.current = isCameraOpen; }, [isCameraOpen]);
@@ -403,91 +410,77 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   /* ---------- jsQR scanner (no BarcodeDetector) ---------- */
   const startQRScan = async () => {
     try {
-      console.log("Requesting camera…");
-
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+        video: { facingMode: "environment" },
         audio: false,
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
 
-        // ✅ Wait for metadata so videoWidth & videoHeight are correct
-        await new Promise((resolve) => {
-          videoRef.current!.addEventListener("loadedmetadata", resolve, { once: true });
+        await new Promise(resolve => {
+          videoRef.current!.addEventListener("loadeddata", resolve, { once: true });
         });
 
+        console.log("🎥 Video loaded:", videoRef.current.videoWidth, videoRef.current.videoHeight);
+
         await videoRef.current.play();
-        console.log("VIDEO PLAYING ✅");
       }
 
       setIsCameraOpen(true);
 
-      // ✅ Start scanning AFTER camera is live
-      setTimeout(() => scanFrame(), 150);
-
-      const scanFrame = () => {
-        if (!videoRef.current || !canvasRef.current || !isCameraOpen) return;
-
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-
-        if (!ctx) return requestAnimationFrame(scanFrame);
-
-        // ✅ Exact match to video resolution (important!)
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-
-        canvas.width = w;
-        canvas.height = h;
-
-        // ✅ Draw high-res frame
-        ctx.drawImage(video, 0, 0, w, h);
-
-        const imageData = ctx.getImageData(0, 0, w, h);
-        const qr = jsQR(imageData.data, w, h, { inversionAttempts: "attemptBoth" });
-
-        if (qr && qr.data) {
-          console.log("QR DETECTED ✅", qr.data);
-
-          // ✅ Stop camera
-          const media = video.srcObject as MediaStream;
-          if (media) media.getTracks().forEach((t) => t.stop());
-          setIsCameraOpen(false);
-
-          let nodeId = qr.data.trim();
-
-          // ✅ If QR is a URL, extract ?id=
-          try {
-            const url = new URL(qr.data);
-            nodeId = url.searchParams.get("id") || nodeId;
-          } catch { }
-
-          if (coordinates[nodeId]) {
-            setSelectedSource(nodeId);
-            if (selectedDestination) handleDestinationClick(selectedDestination);
-          } else {
-            alert("Invalid QR code");
-          }
-
-          return;
-        }
-
-        // ✅ Continue scanning smoothly
-        requestAnimationFrame(scanFrame);
-      };
-
+      setTimeout(() => {
+        console.log("▶️ Starting scanFrame loop...");
+        scanFrame();
+      }, 150);
     } catch (err) {
-      console.error("Camera error:", err);
       alert("Unable to access camera. Please allow permission.");
+      console.error("Camera error:", err);
     }
   };
+
+
+  const scanFrame = () => {
+    //if (!isCameraOpen || !videoRef.current || !canvasRef.current) return;
+    if (!isCameraOpenRef.current || !videoRef.current || !canvasRef.current) return;
+
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return requestAnimationFrame(scanFrame);
+
+    // match canvas to video resolution
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    console.log("📏 Canvas set:", canvas.width, canvas.height);
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    try {
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      const qr = jsQR(img.data, canvas.width, canvas.height);
+
+      if (qr) {
+        console.log("✅ QR Detected:", qr.data);
+
+        const stream = video.srcObject as MediaStream;
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        setIsCameraOpen(false);
+
+        handleDetectedQR(qr.data.trim());
+        return;
+      }
+    } catch (err) {
+      console.warn("Frame error:", err);
+    }
+
+    requestAnimationFrame(scanFrame);
+  };
+
+
 
 
 
@@ -495,16 +488,13 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
     try {
       const url = new URL(raw);
       const id = url.searchParams.get("id");
-      if (id) {
+      if (id && coordinates[id]) {
         setSelectedSource(id);
         if (selectedDestination) handleDestinationClick(selectedDestination);
         return;
       }
-    } catch (e) {
-      // Not a URL
-    }
+    } catch { }
 
-    // Direct node ID?
     if (coordinates[raw]) {
       setSelectedSource(raw);
       if (selectedDestination) handleDestinationClick(selectedDestination);
@@ -763,10 +753,19 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                     // startQRScan();
                     // setShowQuickSearch(false);
                     // setTimeout(() => startQRScan(), 50);
+                    // setIsCameraOpen(true);
+
+                    // // 2. Wait a moment so <video> actually mounts
+                    // setTimeout(() => startQRScan(), 80);
+
+                    // setShowQuickSearch(false);
                     setIsCameraOpen(true);
 
-                    // 2. Wait a moment so <video> actually mounts
-                    setTimeout(() => startQRScan(), 80);
+                    // ✅ Wait for the modal + video element to mount, THEN start scanning
+                    setTimeout(() => {
+                      console.log("✅ Calling startQRScan after video mounted");
+                      startQRScan();
+                    }, 300);
 
                     setShowQuickSearch(false);
                   }}
@@ -893,7 +892,13 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                 className="w-[320px] h-[320px] rounded-xl object-cover bg-gray-900"
               />
 
-              <canvas ref={canvasRef} className="hidden" />
+              {/* <canvas ref={canvasRef} className="hidden" /> */}
+              {/* hidden canvas for jsQR */}
+              <canvas
+                ref={canvasRef}
+                style={{ display: "none" }}
+              />
+
 
               <button
                 onClick={() => {
