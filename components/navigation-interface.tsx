@@ -274,10 +274,18 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   const activeNodes = initialData?.nodes || nodeFriendlyNames;
   const activeCoordinates = initialData?.coordinates || coordinates;
 
-  // Camera + QR (jsQR only)
+  // // Camera + QR (jsQR only)
+  // const [isCameraOpen, setIsCameraOpen] = useState(false);
+  // const videoRef = useRef<HTMLVideoElement>(null);
+  // const canvasRef = useRef<HTMLCanvasElement>(null);
+  // QR Camera states
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // always latest state inside animation loop
+  const isCameraOpenRef = useRef(false);
+  useEffect(() => { isCameraOpenRef.current = isCameraOpen; }, [isCameraOpen]);
 
   // UI state
   const [, setAnnouncement] = useState("");
@@ -396,15 +404,15 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   const startQRScan = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: { facingMode: { ideal: "environment" } },
         audio: false,
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
 
-        // ✅ FIX: wait for metadata before playing (prevents black screen)
-        await new Promise((resolve) => {
+        // ✅ Fix: wait for metadata before playing (prevents black screen)
+        await new Promise(resolve => {
           videoRef.current!.addEventListener("loadedmetadata", resolve, { once: true });
         });
 
@@ -412,23 +420,26 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
       }
 
       setIsCameraOpen(true);
+      isCameraOpenRef.current = true;
 
-      // Wait for camera to boot
+      // ✅ wait 350ms for camera to stabilize
       setTimeout(() => {
         const scan = () => {
-          // prevent scanning after closing overlay
-          if (!videoRef.current || !canvasRef.current || !isCameraOpen) return;
+          if (!isCameraOpenRef.current) return;
+          if (!videoRef.current || !canvasRef.current) {
+            requestAnimationFrame(scan);
+            return;
+          }
 
           const video = videoRef.current;
           const canvas = canvasRef.current;
           const ctx = canvas.getContext("2d");
-
           if (!ctx) {
             requestAnimationFrame(scan);
             return;
           }
 
-          // Sync canvas size with video
+          // ✅ Sync canvas size with video stream
           const w = video.videoWidth || 320;
           const h = video.videoHeight || 240;
           canvas.width = w;
@@ -436,26 +447,22 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
 
           try {
             ctx.drawImage(video, 0, 0, w, h);
-            const img = ctx.getImageData(0, 0, w, h);
+            const frame = ctx.getImageData(0, 0, w, h);
 
-            const qr = jsQR(img.data, w, h);
+            const qr = jsQR(frame.data, w, h);
 
-            if (qr && qr.data) {
-              const value = qr.data.trim();
-
-              // stop camera
-              const media = video.srcObject as MediaStream;
-              if (media) media.getTracks().forEach((t) => t.stop());
+            if (qr?.data) {
+              stopCamera();
               setIsCameraOpen(false);
+              isCameraOpenRef.current = false;
 
-              // Try extract id from URL format
-              let nodeId = value;
+              let nodeId = qr.data.trim();
+
+              // ✅ If QR contains URL -> extract ?id=
               try {
-                const url = new URL(value);
+                const url = new URL(nodeId);
                 nodeId = url.searchParams.get("id") || nodeId;
-              } catch {
-                // not a URL
-              }
+              } catch { }
 
               if (coordinates[nodeId]) {
                 setSelectedSource(nodeId);
@@ -464,10 +471,10 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                 alert("Invalid QR code");
               }
 
-              return; // stop scanning
+              return;
             }
           } catch {
-            // continue scanning even if one frame errors
+            // ignore frame errors
           }
 
           requestAnimationFrame(scan);
@@ -476,10 +483,11 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
         requestAnimationFrame(scan);
       }, 350);
     } catch (err) {
-      alert("Unable to access camera. Please allow permission.");
+      alert("Unable to access the camera.");
       console.error("Camera error:", err);
     }
   };
+
 
 
 
@@ -505,6 +513,15 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
 
     alert("Invalid QR code");
   };
+
+  const stopCamera = () => {
+    const v = videoRef.current;
+    if (v?.srcObject) {
+      (v.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      v.srcObject = null;
+    }
+  };
+
 
 
   /* ---------------- SVG drawing ---------------- */
@@ -665,7 +682,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
           <div className="hidden md:flex items-center gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-pink-200/60 bg-pink-50/40 px-3 py-1 text-sm">
               <span className="h-2 w-2 rounded-full bg-pink-500" />
-              Clean • Minimal • Modern
+              Capstone Project
             </div>
           </div>
         </div>
@@ -862,29 +879,24 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                 playsInline
                 muted
                 className="w-[320px] h-[320px] rounded-xl object-cover bg-gray-900"
-                style={{ zIndex: 2, position: "relative" }}
               />
 
-              <canvas
-                ref={canvasRef}
-                className="hidden"
-              />
+              <canvas ref={canvasRef} className="hidden" />
 
               <button
                 onClick={() => {
-                  if (videoRef.current?.srcObject) {
-                    (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-                  }
+                  stopCamera();
                   setIsCameraOpen(false);
+                  isCameraOpenRef.current = false;
                 }}
                 className="mt-3 w-full py-2 rounded-xl bg-red-500 text-white font-semibold"
               >
                 Close
               </button>
             </div>
-
           </div>
         )}
+
       </main>
 
       <style jsx global>{`
