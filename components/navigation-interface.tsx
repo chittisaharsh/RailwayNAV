@@ -464,32 +464,6 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   };
 
 
-  // const startQRScan = async () => {
-  //   try {
-  //     let stream;
-
-  //     // Try to open the BACK CAMERA first
-  //     try {
-  //       stream = await navigator.mediaDevices.getUserMedia({
-  //         video: { facingMode: { ideal: "environment" } }
-  //       });
-  //     } catch {
-  //       // If it fails (PC or unsupported), fallback to any camera
-  //       stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  //     }
-
-  //     // Attach stream to video element
-  //     if (videoRef.current) {
-  //       videoRef.current.srcObject = stream;
-  //       await videoRef.current.play();
-  //     }
-
-  //     setIsCameraOpen(true);
-  //   } catch (err) {
-  //     console.error("Camera error:", err);
-  //     alert("Unable to access camera. Please allow permission in your browser.");
-  //   }
-  // };
 
   const startQRScan = async () => {
     try {
