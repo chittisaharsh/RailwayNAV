@@ -403,91 +403,41 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   /* ---------- jsQR scanner (no BarcodeDetector) ---------- */
   const startQRScan = async () => {
     try {
+      console.log("REQUESTING CAMERA…");
+
+      // Wait until videoRef exists
+      if (!videoRef.current) {
+        console.log("videoRef still null, retrying…");
+        setTimeout(startQRScan, 50);
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: { facingMode: "environment" },
         audio: false,
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      console.log("CAMERA STREAM RECEIVED ✅");
 
-        // ✅ Fix: wait for metadata before playing (prevents black screen)
-        await new Promise(resolve => {
-          videoRef.current!.addEventListener("loadedmetadata", resolve, { once: true });
-        });
+      videoRef.current.srcObject = stream;
 
-        await videoRef.current.play();
-      }
-
-      setIsCameraOpen(true);
-      isCameraOpenRef.current = true;
-
-      // ✅ wait 350ms for camera to stabilize
-      setTimeout(() => {
-        const scan = () => {
-          if (!isCameraOpenRef.current) return;
-          if (!videoRef.current || !canvasRef.current) {
-            requestAnimationFrame(scan);
-            return;
-          }
-
-          const video = videoRef.current;
-          const canvas = canvasRef.current;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            requestAnimationFrame(scan);
-            return;
-          }
-
-          // ✅ Sync canvas size with video stream
-          const w = video.videoWidth || 320;
-          const h = video.videoHeight || 240;
-          canvas.width = w;
-          canvas.height = h;
-
-          try {
-            ctx.drawImage(video, 0, 0, w, h);
-            const frame = ctx.getImageData(0, 0, w, h);
-
-            const qr = jsQR(frame.data, w, h);
-
-            if (qr?.data) {
-              stopCamera();
-              setIsCameraOpen(false);
-              isCameraOpenRef.current = false;
-
-              let nodeId = qr.data.trim();
-
-              // ✅ If QR contains URL -> extract ?id=
-              try {
-                const url = new URL(nodeId);
-                nodeId = url.searchParams.get("id") || nodeId;
-              } catch { }
-
-              if (coordinates[nodeId]) {
-                setSelectedSource(nodeId);
-                if (selectedDestination) handleDestinationClick(selectedDestination);
-              } else {
-                alert("Invalid QR code");
-              }
-
-              return;
-            }
-          } catch {
-            // ignore frame errors
-          }
-
-          requestAnimationFrame(scan);
+      // Wait for metadata (mandatory)
+      await new Promise((resolve) => {
+        videoRef.current!.onloadedmetadata = () => {
+          console.log("VIDEO METADATA LOADED ✅");
+          resolve(true);
         };
+      });
 
-        requestAnimationFrame(scan);
-      }, 350);
+      await videoRef.current.play();
+      console.log("VIDEO PLAYING ✅");
+
+      // Stop. Scan will be added later.
     } catch (err) {
-      alert("Unable to access the camera.");
-      console.error("Camera error:", err);
+      console.error("CAMERA ERROR:", err);
+      alert("Unable to access camera.");
     }
   };
-
 
 
 
@@ -762,6 +712,7 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
                   onClick={() => {
                     startQRScan();
                     setShowQuickSearch(false);
+                    setTimeout(() => startQRScan(), 50);
                   }}
                   className="flex items-center w-full mb-3 text-left bg-blue-50 hover:bg-blue-100 transition rounded-xl px-3 py-2 shadow-sm border border-blue-200"
                 >
@@ -874,11 +825,16 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
             <div className="bg-white p-4 rounded-2xl shadow-xl">
 
               <video
+                // ref={videoRef}
+                // autoPlay
+                // playsInline
+                // muted
+                // className="w-[320px] h-[320px] rounded-xl object-cover bg-gray-900"
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-[320px] h-[320px] rounded-xl object-cover bg-gray-900"
+                className="w-80 h-80 rounded-xl bg-red-500"
               />
 
               <canvas ref={canvasRef} className="hidden" />
