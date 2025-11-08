@@ -9,7 +9,7 @@ const HomePage = () => {
   const handleAdminSubmit = (enabledNodes: string[]) => {
     console.log('Enabled nodes:', enabledNodes);
     setNavigationData(enabledNodes);
-    setShowAdmin(false);
+    //setShowAdmin(false);
   };
 
   return (
