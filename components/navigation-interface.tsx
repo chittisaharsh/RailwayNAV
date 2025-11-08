@@ -403,39 +403,89 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   /* ---------- jsQR scanner (no BarcodeDetector) ---------- */
   const startQRScan = async () => {
     try {
-      console.log("REQUESTING CAMERA…");
-
-      // Wait until videoRef exists
-      if (!videoRef.current) {
-        console.log("videoRef still null, retrying…");
-        setTimeout(startQRScan, 50);
-        return;
-      }
+      console.log("Requesting camera…");
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
         audio: false,
       });
 
-      console.log("CAMERA STREAM RECEIVED ✅");
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
 
-      videoRef.current.srcObject = stream;
+        // ✅ Wait for metadata so videoWidth & videoHeight are correct
+        await new Promise((resolve) => {
+          videoRef.current!.addEventListener("loadedmetadata", resolve, { once: true });
+        });
 
-      // Wait for metadata (mandatory)
-      await new Promise((resolve) => {
-        videoRef.current!.onloadedmetadata = () => {
-          console.log("VIDEO METADATA LOADED ✅");
-          resolve(true);
-        };
-      });
+        await videoRef.current.play();
+        console.log("VIDEO PLAYING ✅");
+      }
 
-      await videoRef.current.play();
-      console.log("VIDEO PLAYING ✅");
+      setIsCameraOpen(true);
 
-      // Stop. Scan will be added later.
+      // ✅ Start scanning AFTER camera is live
+      setTimeout(() => scanFrame(), 150);
+
+      const scanFrame = () => {
+        if (!videoRef.current || !canvasRef.current || !isCameraOpen) return;
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) return requestAnimationFrame(scanFrame);
+
+        // ✅ Exact match to video resolution (important!)
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+
+        canvas.width = w;
+        canvas.height = h;
+
+        // ✅ Draw high-res frame
+        ctx.drawImage(video, 0, 0, w, h);
+
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const qr = jsQR(imageData.data, w, h, { inversionAttempts: "attemptBoth" });
+
+        if (qr && qr.data) {
+          console.log("QR DETECTED ✅", qr.data);
+
+          // ✅ Stop camera
+          const media = video.srcObject as MediaStream;
+          if (media) media.getTracks().forEach((t) => t.stop());
+          setIsCameraOpen(false);
+
+          let nodeId = qr.data.trim();
+
+          // ✅ If QR is a URL, extract ?id=
+          try {
+            const url = new URL(qr.data);
+            nodeId = url.searchParams.get("id") || nodeId;
+          } catch { }
+
+          if (coordinates[nodeId]) {
+            setSelectedSource(nodeId);
+            if (selectedDestination) handleDestinationClick(selectedDestination);
+          } else {
+            alert("Invalid QR code");
+          }
+
+          return;
+        }
+
+        // ✅ Continue scanning smoothly
+        requestAnimationFrame(scanFrame);
+      };
+
     } catch (err) {
-      console.error("CAMERA ERROR:", err);
-      alert("Unable to access camera.");
+      console.error("Camera error:", err);
+      alert("Unable to access camera. Please allow permission.");
     }
   };
 
