@@ -412,66 +412,96 @@ const StationNavigation: React.FC<StationNavigationProps> = ({ initialData }) =>
   };
 
   // ---------- Option 2: Native BarcodeDetector scanner ----------
+  // const startQRScan = async () => {
+  //   try {
+  //     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  //     if (videoRef.current) {
+  //       videoRef.current.srcObject = stream;
+  //       await videoRef.current.play();
+  //     }
+  //     setIsCameraOpen(true);
+
+  //     const canvas = document.createElement("canvas");
+  //     const ctx = canvas.getContext("2d");
+
+  //     const scan = () => {
+  //       if (!videoRef.current || !ctx) return;
+
+  //       canvas.width = videoRef.current.videoWidth;
+  //       canvas.height = videoRef.current.videoHeight;
+  //       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+  //       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  //       const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+  //       if (code) {
+  //         const value = code.data.trim();
+  //         stream.getTracks().forEach(t => t.stop());
+  //         setIsCameraOpen(false);
+
+  //         try {
+  //           const url = new URL(value);
+  //           const id = url.searchParams.get("id");
+  //           if (id && coordinates[id]) {
+  //             setSelectedSource(id);
+  //             if (selectedDestination) handleDestinationClick(selectedDestination);
+  //           } else alert("Invalid QR");
+  //         } catch {
+  //           if (coordinates[value]) {
+  //             setSelectedSource(value);
+  //             if (selectedDestination) handleDestinationClick(selectedDestination);
+  //           } else alert("Invalid QR");
+  //         }
+  //         return;
+  //       }
+
+  //       requestAnimationFrame(scan);
+  //     };
+
+  //     requestAnimationFrame(scan);
+  //   } catch (err) {
+  //     alert("Camera error");
+  //     console.error(err);
+  //   }
+  // };(scan);
+  //     };
+
+  //     requestAnimationFrame(scan);
+  //   } catch (err) {
+  //     alert("Unable to open camera");
+  //     console.error(err);
+  //   }
+  // };
   const startQRScan = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      let stream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } }
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+
       setIsCameraOpen(true);
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      // ✅ Give camera time to boot
+      setTimeout(() => {
+        scanQRCode();
+      }, 400);
 
-      const scan = () => {
-        if (!videoRef.current || !ctx) return;
-
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, canvas.width, canvas.height);
-
-        if (code) {
-          const value = code.data.trim();
-          stream.getTracks().forEach(t => t.stop());
-          setIsCameraOpen(false);
-
-          try {
-            const url = new URL(value);
-            const id = url.searchParams.get("id");
-            if (id && coordinates[id]) {
-              setSelectedSource(id);
-              if (selectedDestination) handleDestinationClick(selectedDestination);
-            } else alert("Invalid QR");
-          } catch {
-            if (coordinates[value]) {
-              setSelectedSource(value);
-              if (selectedDestination) handleDestinationClick(selectedDestination);
-            } else alert("Invalid QR");
-          }
-          return;
-        }
-
-        requestAnimationFrame(scan);
-      };
-
-      requestAnimationFrame(scan);
     } catch (err) {
-      alert("Camera error");
+      alert("Unable to access camera. Please allow permission.");
       console.error(err);
     }
-  };(scan);
-      };
+  };   // ✅ THIS is required!
 
-      requestAnimationFrame(scan);
-    } catch (err) {
-      alert("Unable to open camera");
-      console.error(err);
-    }
-  };
 
   const updateSvg = () => {
     const svg = svgRef.current;
